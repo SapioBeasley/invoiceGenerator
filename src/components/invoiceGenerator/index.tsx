@@ -127,9 +127,9 @@ const InvoiceGenerator = () => {
     const pageHeight = doc.internal.pageSize.height;
 
     // Colors
-    const primaryColor = [41, 128, 185]; // Blue
-    const secondaryColor = [52, 73, 94]; // Dark gray
-    const lightGray = [236, 240, 241];
+    const primaryColor: [number, number, number] = [41, 128, 185]; // Blue
+    const secondaryColor: [number, number, number] = [52, 73, 94]; // Dark gray
+    const white: [number, number, number] = [255, 255, 255];
 
     // Helper function to add text with word wrapping
     const addWrappedText = (
@@ -153,7 +153,7 @@ const InvoiceGenerator = () => {
       }
 
       // Header with logo placeholder and business info
-      doc.setFillColor(...[255, 255, 255]);
+      doc.setFillColor(...white);
       doc.rect(0, 0, pageWidth, 50, 'F');
 
       if (logoBase64) {
