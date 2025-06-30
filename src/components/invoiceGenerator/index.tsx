@@ -67,7 +67,17 @@ const InvoiceGenerator = () => {
       address: '456 Client Ave\nClient City, State 67890',
       uci: '123XYZ',
     },
-    lineItems: [],
+    // lineItems: [],
+    lineItems: Array(30)
+      .fill(0)
+      .map((_, i) => ({
+        serviceCode: 'SC001',
+        date: dayjs.utc().toISOString().split('T')[0],
+        description: 'Service Description',
+        time: 1,
+        rate: 100,
+        cost: 100,
+      })),
     notes: 'Payment due within 30 days. Thank you for your business!',
   });
 
@@ -251,7 +261,9 @@ const InvoiceGenerator = () => {
         ),
       });
 
-      yPosition += data.lineItems.length * 12 + 10;
+      // Get the actual Y position after the table is rendered
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      yPosition = (doc as any).lastAutoTable.finalY + 10;
 
       // Totals
       const subtotal = data.lineItems.reduce((sum, item) => sum + item.cost, 0);
