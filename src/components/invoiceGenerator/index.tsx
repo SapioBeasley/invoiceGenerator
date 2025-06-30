@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Download, FileText, Plus, Trash2 } from 'lucide-react';
+import { Copy, Download, FileText, Plus, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { autoTable } from 'jspdf-autotable';
@@ -67,17 +67,7 @@ const InvoiceGenerator = () => {
       address: '456 Client Ave\nClient City, State 67890',
       uci: '123XYZ',
     },
-    // lineItems: [],
-    lineItems: Array(30)
-      .fill(0)
-      .map((_, i) => ({
-        serviceCode: 'SC001',
-        date: dayjs.utc().toISOString().split('T')[0],
-        description: 'Service Description',
-        time: 1,
-        rate: 100,
-        cost: 100,
-      })),
+    lineItems: [],
     notes: 'Payment due within 30 days. Thank you for your business!',
   });
 
@@ -102,6 +92,17 @@ const InvoiceGenerator = () => {
     setInvoiceData((prev) => ({
       ...prev,
       lineItems: prev.lineItems.filter((_, i) => i !== index),
+    }));
+  };
+
+  const cloneLineItem = (index: number) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      lineItems: [
+        ...prev.lineItems.slice(0, index + 1),
+        { ...prev.lineItems[index] },
+        ...prev.lineItems.slice(index + 1),
+      ],
     }));
   };
 
@@ -456,33 +457,101 @@ const InvoiceGenerator = () => {
               </Button>
             </div>
 
-            <div className='space-y-4'>
+            <div className='space-y-6'>
               {invoiceData.lineItems.map((item, index) => (
                 <div
                   key={index}
-                  className='grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg'
+                  className='p-6 border rounded-lg bg-white shadow-sm'
                 >
-                  <div>
-                    <Label>Service Code</Label>
-                    <Input
-                      value={item.serviceCode}
-                      onChange={(e) =>
-                        updateLineItem(index, 'serviceCode', e.target.value)
-                      }
-                      placeholder='SVC-001'
-                    />
+                  {/* Header with item number and action buttons */}
+                  <div className='flex items-center justify-between mb-4'>
+                    <h4 className='text-sm font-medium text-gray-700'>
+                      Line Item #{index + 1}
+                    </h4>
+                    <div className='flex gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => cloneLineItem(index)}
+                        title='Clone this line item'
+                      >
+                        <Copy className='h-4 w-4' />
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => removeLineItem(index)}
+                        title='Remove this line item'
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <Label>Date</Label>
-                    <Input
-                      type='date'
-                      value={item.date}
-                      onChange={(e) =>
-                        updateLineItem(index, 'date', e.target.value)
-                      }
-                    />
+
+                  {/* Input fields in a cleaner grid */}
+                  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                    <div>
+                      <Label>Service Code</Label>
+                      <Input
+                        value={item.serviceCode}
+                        onChange={(e) =>
+                          updateLineItem(index, 'serviceCode', e.target.value)
+                        }
+                        placeholder='SVC-001'
+                      />
+                    </div>
+                    <div>
+                      <Label>Date</Label>
+                      <Input
+                        type='date'
+                        value={item.date}
+                        onChange={(e) =>
+                          updateLineItem(index, 'date', e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='md:col-span-2 lg:col-span-1'>
+                      <Label>Hours</Label>
+                      <Input
+                        type='number'
+                        step='0.5'
+                        value={item.time}
+                        onChange={(e) =>
+                          updateLineItem(
+                            index,
+                            'time',
+                            Number.parseFloat(e.target.value) || 0
+                          )
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Rate ($)</Label>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        value={item.rate}
+                        onChange={(e) =>
+                          updateLineItem(
+                            index,
+                            'rate',
+                            Number.parseFloat(e.target.value) || 0
+                          )
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Cost ($)</Label>
+                      <Input
+                        value={item.cost.toFixed(2)}
+                        readOnly
+                        className='bg-gray-50 font-medium'
+                      />
+                    </div>
                   </div>
-                  <div>
+
+                  {/* Description gets its own row for better space */}
+                  <div className='mt-4'>
                     <Label>Description</Label>
                     <Input
                       value={item.description}
@@ -490,55 +559,8 @@ const InvoiceGenerator = () => {
                         updateLineItem(index, 'description', e.target.value)
                       }
                       placeholder='Service description'
+                      className='w-full'
                     />
-                  </div>
-                  <div>
-                    <Label>Hours</Label>
-                    <Input
-                      type='number'
-                      step='0.5'
-                      value={item.time}
-                      onChange={(e) =>
-                        updateLineItem(
-                          index,
-                          'time',
-                          Number.parseFloat(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Rate ($)</Label>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      value={item.rate}
-                      onChange={(e) =>
-                        updateLineItem(
-                          index,
-                          'rate',
-                          Number.parseFloat(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </div>
-                  <div className='flex items-end gap-2'>
-                    <div className='flex-1'>
-                      <Label>Cost ($)</Label>
-                      <Input
-                        value={item.cost.toFixed(2)}
-                        readOnly
-                        className='bg-gray-50'
-                      />
-                    </div>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => removeLineItem(index)}
-                      className='mb-0'
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
                   </div>
                 </div>
               ))}
