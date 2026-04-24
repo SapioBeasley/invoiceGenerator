@@ -6,12 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, FileText, Plus, Trash2 } from 'lucide-react';
+import { Car, Copy, Download, FileText, Plus, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { autoTable } from 'jspdf-autotable';
 
 dayjs.extend(utc);
+
+const MILEAGE_RATE = 0.7;
 
 const loadImageAsBase64 = (url: string) => {
   return new Promise((resolve, reject) => {
@@ -30,11 +32,15 @@ const loadImageAsBase64 = (url: string) => {
   });
 };
 
+type LineItemType = 'hourly' | 'mileage';
+
 interface LineItem {
+  type: LineItemType;
   serviceCode: string;
   date: string;
   description: string;
-  time: number;
+  quantity: number;
+  unit: 'hr' | 'mi';
   rate: number;
   cost: number;
 }
@@ -77,11 +83,32 @@ const InvoiceGenerator = () => {
       lineItems: [
         ...prev.lineItems,
         {
+          type: 'hourly' as LineItemType,
           serviceCode: '',
           date: dayjs.utc().toISOString().split('T')[0],
           description: '',
-          time: 0,
+          quantity: 0,
+          unit: 'hr' as const,
           rate: 0,
+          cost: 0,
+        },
+      ],
+    }));
+  };
+
+  const addMileageItem = () => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      lineItems: [
+        ...prev.lineItems,
+        {
+          type: 'mileage' as LineItemType,
+          serviceCode: '',
+          date: dayjs.utc().toISOString().split('T')[0],
+          description: '',
+          quantity: 0,
+          unit: 'mi' as const,
+          rate: MILEAGE_RATE,
           cost: 0,
         },
       ],
@@ -109,16 +136,16 @@ const InvoiceGenerator = () => {
   const updateLineItem = (
     index: number,
     field: keyof LineItem,
-    value: string | number
+    value: string | number,
   ) => {
     setInvoiceData((prev) => ({
       ...prev,
       lineItems: prev.lineItems.map((item, i) => {
         if (i === index) {
           const updated = { ...item, [field]: value };
-          // Auto-calculate cost when time or rate changes
-          if (field === 'time' || field === 'rate') {
-            updated.cost = updated.time * updated.rate;
+          // Auto-calculate cost when quantity or rate changes
+          if (field === 'quantity' || field === 'rate') {
+            updated.cost = updated.quantity * updated.rate;
           }
           return updated;
         }
@@ -148,7 +175,7 @@ const InvoiceGenerator = () => {
       x: number,
       y: number,
       maxWidth: number,
-      lineHeight = 6
+      lineHeight = 6,
     ) => {
       const lines = doc.splitTextToSize(text, maxWidth);
       doc.text(lines, x, y);
@@ -176,7 +203,7 @@ const InvoiceGenerator = () => {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       const businessLines = '3675 Glenrose Ave\nAltadena , Ca 91001'.split(
-        '\n'
+        '\n',
       );
       let businessY = 15;
       businessLines.forEach((line) => {
@@ -203,14 +230,14 @@ const InvoiceGenerator = () => {
         `Date: ${dayjs.utc(data.invoiceDate).format('MM/DD/YYYY')}`,
         pageWidth - 15,
         yPosition,
-        { align: 'right' }
+        { align: 'right' },
       );
       yPosition += 6;
       doc.text(
         `Due Date: ${dayjs.utc(data.dueDate).format('MM/DD/YYYY')}`,
         pageWidth - 15,
         yPosition,
-        { align: 'right' }
+        { align: 'right' },
       );
 
       yPosition += 20;
@@ -247,19 +274,25 @@ const InvoiceGenerator = () => {
       autoTable(doc, {
         startY: yPosition,
         head: [
-          ['Service Code', 'Date', 'Description', 'Hours', 'Rate', 'Amount'],
+          [
+            'Service Code',
+            'Date',
+            'Description',
+            'Qty',
+            'Unit',
+            'Rate',
+            'Amount',
+          ],
         ],
-        body: data.lineItems.map((obj) =>
-          Object.entries(obj).map(([key, value]) => {
-            if (
-              ['rate', 'cost', 'amount'].includes(key) &&
-              typeof value === 'number'
-            ) {
-              return value.toFixed(2); // format as string with 2 decimal places
-            }
-            return String(value); // convert all other values to string
-          })
-        ),
+        body: data.lineItems.map((item) => [
+          item.serviceCode,
+          item.date,
+          item.description,
+          String(item.quantity),
+          item.unit,
+          item.rate.toFixed(2),
+          item.cost.toFixed(2),
+        ]),
       });
 
       // Get the actual Y position after the table is rendered
@@ -317,7 +350,7 @@ const InvoiceGenerator = () => {
         footerY,
         {
           align: 'center',
-        }
+        },
       );
 
       doc.text('hilltopconstructionservices.com', pageWidth / 2, footerY + 4, {
@@ -333,7 +366,7 @@ const InvoiceGenerator = () => {
 
   const totalAmount = invoiceData.lineItems.reduce(
     (sum, item) => sum + item.cost,
-    0
+    0,
   );
 
   return (
@@ -451,10 +484,16 @@ const InvoiceGenerator = () => {
           <div>
             <div className='flex items-center justify-between mb-3'>
               <h3 className='text-lg font-semibold'>Line Items</h3>
-              <Button onClick={addLineItem} size='sm'>
-                <Plus className='h-4 w-4 mr-2' />
-                Add Item
-              </Button>
+              <div className='flex gap-2'>
+                <Button onClick={addLineItem} size='sm'>
+                  <Plus className='h-4 w-4 mr-2' />
+                  Add Item
+                </Button>
+                <Button onClick={addMileageItem} size='sm' variant='outline'>
+                  <Car className='h-4 w-4 mr-2' />
+                  Add Mileage
+                </Button>
+              </div>
             </div>
 
             <div className='space-y-6'>
@@ -465,9 +504,20 @@ const InvoiceGenerator = () => {
                 >
                   {/* Header with item number and action buttons */}
                   <div className='flex items-center justify-between mb-4'>
-                    <h4 className='text-sm font-medium text-gray-700'>
-                      Line Item #{index + 1}
-                    </h4>
+                    <div className='flex items-center gap-2'>
+                      <h4 className='text-sm font-medium text-gray-700'>
+                        Line Item #{index + 1}
+                      </h4>
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          item.type === 'mileage'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {item.type === 'mileage' ? 'Mileage' : 'Hourly'}
+                      </span>
+                    </div>
                     <div className='flex gap-2'>
                       <Button
                         variant='outline'
@@ -511,22 +561,28 @@ const InvoiceGenerator = () => {
                       />
                     </div>
                     <div className='md:col-span-2 lg:col-span-1'>
-                      <Label>Hours</Label>
+                      <Label>
+                        {item.type === 'mileage' ? 'Miles' : 'Hours'}
+                      </Label>
                       <Input
                         type='number'
-                        step='0.5'
-                        value={item.time}
+                        step={item.type === 'mileage' ? '1' : '0.5'}
+                        value={item.quantity}
                         onChange={(e) =>
                           updateLineItem(
                             index,
-                            'time',
-                            Number.parseFloat(e.target.value) || 0
+                            'quantity',
+                            Number.parseFloat(e.target.value) || 0,
                           )
                         }
                       />
                     </div>
                     <div>
-                      <Label>Rate ($)</Label>
+                      <Label>
+                        {item.type === 'mileage'
+                          ? 'Rate ($/mi)'
+                          : 'Rate ($/hr)'}
+                      </Label>
                       <Input
                         type='number'
                         step='0.01'
@@ -535,7 +591,7 @@ const InvoiceGenerator = () => {
                           updateLineItem(
                             index,
                             'rate',
-                            Number.parseFloat(e.target.value) || 0
+                            Number.parseFloat(e.target.value) || 0,
                           )
                         }
                       />
