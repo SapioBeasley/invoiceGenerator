@@ -27,7 +27,7 @@ export const generateDocumentPDF = async (data: DocumentFormData) => {
 
   // 1. Add Logo
   try {
-    const logoImg = await loadImage('/logo.png');
+    const logoImg = await loadImage('/placeholder.png');
     // Calculate aspect ratio for logo
     const imgWidth = 2; // 2 inches wide
     const imgHeight = (logoImg.height * imgWidth) / logoImg.width;
