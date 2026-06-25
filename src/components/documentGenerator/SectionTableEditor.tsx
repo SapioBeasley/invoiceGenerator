@@ -108,17 +108,25 @@ export const SectionTableEditor: React.FC<Props> = ({ sectionKey }) => {
   return (
     <div className='mt-4 border rounded-md p-4 bg-gray-50 overflow-x-auto'>
       <div className='flex items-center justify-between mb-4'>
-        <label className='text-sm font-medium flex items-center gap-2'>
-          <input
-            type='checkbox'
-            checked={tableData.enabled}
-            onChange={(e) =>
-              setTable({ ...tableData, enabled: e.target.checked })
-            }
-            className='w-4 h-4'
-          />
-          Include Table
-        </label>
+        <div className='flex flex-col'>
+          <label className='text-sm font-medium flex items-center gap-2'>
+            <input
+              type='checkbox'
+              checked={tableData.enabled}
+              onChange={(e) =>
+                setTable({ ...tableData, enabled: e.target.checked })
+              }
+              className='w-4 h-4'
+            />
+            Include Table
+          </label>
+          {tableData.enabled && (
+            <p className='text-xs text-gray-500 mt-1'>
+              Tip: Enter numeric values in the columns to automatically
+              calculate averages.
+            </p>
+          )}
+        </div>
         <div className='flex gap-2'>
           <button
             type='button'

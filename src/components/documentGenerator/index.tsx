@@ -134,6 +134,33 @@ export default function DocumentGenerator() {
           <CardTitle>Generate Document</CardTitle>
           <CardDescription>
             Select a document type and client to generate a report.
+            <div className='mt-4 p-4 bg-blue-50 text-blue-800 rounded-md border border-blue-200 text-sm'>
+              <p className='font-semibold mb-1'>How to use this module:</p>
+              <ul className='list-disc pl-5 space-y-1'>
+                <li>
+                  <strong>Select Document Type:</strong> Choose between ISP or
+                  APR. This changes the sections that are available to fill out.
+                </li>
+                <li>
+                  <strong>Select Client:</strong> Picking a client from the
+                  dropdown will auto-populate their identifying information.
+                </li>
+                <li>
+                  <strong>Toggle Sections:</strong> Use the checkboxes next to
+                  section titles to include or exclude them from the final PDF.
+                </li>
+                <li>
+                  <strong>Tables:</strong> In sections with tables, the
+                  &quot;Average&quot; row calculates automatically based on the
+                  column values above it. Add or remove columns/rows as needed.
+                </li>
+                <li>
+                  <strong>Export:</strong> Click the &quot;Export to PDF&quot;
+                  button at the bottom to generate the final document. The
+                  layout is automatically formatted.
+                </li>
+              </ul>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent>
