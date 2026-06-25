@@ -1,0 +1,29 @@
+[
+  {
+    "id": "c1",
+    "name": "Marquis McFee",
+    "uciNumber": "6099469",
+    "dob": "1995-05-04",
+    "address": "Leigh Braxton, 3675 Glenrose Ave., Altadena, CA. 91001",
+    "referralSource": "Frank D. Lanterman Regional Center",
+    "cordinatorName": "Irene Owuor"
+  },
+  {
+    "id": "c2",
+    "name": "Matthew Braxton",
+    "uciNumber": "7907506",
+    "dob": "1997-02-05",
+    "address": "3675 Glenrose Avenue, Altadena, CA 91001",
+    "referralSource": "San Gabriel/Pomona Regional Center",
+    "cordinatorName": "Heather Paz"
+  },
+  {
+    "id": "c3",
+    "name": "Chaisson Braxton",
+    "uciNumber": "2718110",
+    "dob": "1992-11-04",
+    "address": "3675 Glenrose Ave., Altadena, CA. 91001",
+    "referralSource": "San Gabriel/Pomona Regional Center",
+    "cordinatorName": "Lisa Quihuiz"
+  }
+]
