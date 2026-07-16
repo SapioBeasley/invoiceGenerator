@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import {
   Card,
   CardHeader,
@@ -73,10 +73,20 @@ export default function DocumentGenerator() {
           enabled: true,
         },
       },
+      contributors: [],
     },
   });
 
-  const { register, handleSubmit, watch, setValue } = methods;
+  const { register, handleSubmit, watch, setValue, control } = methods;
+
+  const {
+    fields: contributorFields,
+    append: appendContributor,
+    remove: removeContributor,
+  } = useFieldArray({
+    control,
+    name: 'contributors',
+  });
 
   const documentType = watch('documentType');
 
@@ -381,26 +391,76 @@ export default function DocumentGenerator() {
                 )}
               </div>
 
-              <div className='grid grid-cols-2 gap-4 border-t pt-4'>
+              <div className='border-t pt-4 space-y-4'>
+                <h3 className='font-semibold text-lg'>Footer & Signatures</h3>
+
+                {/* Contributors List */}
                 <div>
-                  <label className='block text-sm font-medium mb-1'>
-                    Signer Name (Print Name)
-                  </label>
-                  <input
-                    type='text'
-                    {...register('printName')}
-                    className='w-full border rounded-md p-2'
-                  />
+                  <div className='flex items-center justify-between mb-2'>
+                    <label className='block text-sm font-medium'>
+                      Data Contributors (Optional)
+                    </label>
+                    <button
+                      type='button'
+                      onClick={() =>
+                        appendContributor({ name: '', position: '' })
+                      }
+                      className='text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-200'
+                    >
+                      + Add Contributor
+                    </button>
+                  </div>
+                  {contributorFields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className='flex items-center gap-2 mb-2'
+                    >
+                      <input
+                        {...register(`contributors.${index}.name`)}
+                        placeholder='Contributor Name'
+                        className='flex-1 border rounded-md p-2 text-sm'
+                      />
+                      <input
+                        {...register(`contributors.${index}.position`)}
+                        placeholder='Client Relation / Position (e.g. Therapist)'
+                        className='flex-1 border rounded-md p-2 text-sm'
+                      />
+                      <button
+                        type='button'
+                        onClick={() => removeContributor(index)}
+                        className='text-red-500 hover:text-red-700 p-2'
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <p className='text-xs text-gray-500'>
+                    These names will be listed in a paragraph above the
+                    signature line.
+                  </p>
                 </div>
-                <div>
-                  <label className='block text-sm font-medium mb-1'>
-                    Signer Position
-                  </label>
-                  <input
-                    type='text'
-                    {...register('position')}
-                    className='w-full border rounded-md p-2'
-                  />
+
+                <div className='grid grid-cols-2 gap-4'>
+                  <div>
+                    <label className='block text-sm font-medium mb-1'>
+                      Signer Name (Print Name)
+                    </label>
+                    <input
+                      type='text'
+                      {...register('printName')}
+                      className='w-full border rounded-md p-2'
+                    />
+                  </div>
+                  <div>
+                    <label className='block text-sm font-medium mb-1'>
+                      Signer Position
+                    </label>
+                    <input
+                      type='text'
+                      {...register('position')}
+                      className='w-full border rounded-md p-2'
+                    />
+                  </div>
                 </div>
               </div>
 

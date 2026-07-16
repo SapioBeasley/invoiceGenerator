@@ -292,11 +292,34 @@ export const generateDocumentPDF = async (data: DocumentFormData) => {
   }
 
   // Footer
-  cursorY += 0.5;
-  if (cursorY + 0.5 > pageHeight - margin) {
+  cursorY += 0.3;
+  if (cursorY + 1.0 > pageHeight - margin) {
     doc.addPage();
     cursorY = margin + 0.6;
   }
+
+  // Contributors Paragraph
+  const printName = data.printName || '[Signer Name]';
+  const position = data.position || '[Signer Position]';
+  let prepText = `${printName}, ${position} prepared this progress report`;
+
+  if (data.contributors && data.contributors.length > 0) {
+    prepText += ` with data and notes provided by `;
+    const contribTexts = data.contributors.map((c, i) => {
+      const namePart = c.name || '[Name]';
+      const posPart = c.position || '[Position]';
+      if (i === 0 && data.name) {
+        return `${namePart}, ${data.name} ${posPart}`;
+      }
+      return `${namePart}, ${posPart}`;
+    });
+    prepText += contribTexts.join('. ') + '.';
+  } else {
+    prepText += '.';
+  }
+
+  addText(prepText, 11, false, 'left', 0.5);
+
   addText('_________________________________________', 11);
   addText(`${data.printName || 'Name'}, ${data.position || 'Position'}`, 11);
 

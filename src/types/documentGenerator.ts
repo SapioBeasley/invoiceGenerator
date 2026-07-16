@@ -53,6 +53,7 @@ export interface DocumentFormData {
   cordinatorName: string;
   printName: string;
   position: string;
+  contributors?: { name: string; position: string }[];
 
   // ISP Sections (Toggles & Content)
   includeRationale: boolean;
