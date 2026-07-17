@@ -101,8 +101,6 @@ export default function DocumentGenerator() {
       setValue('uciNumber', client.uciNumber);
       setValue('dob', client.dob);
       setValue('address', client.address);
-      setValue('referralSource', client.referralSource);
-      setValue('cordinatorName', client.cordinatorName);
     }
   };
 
@@ -288,8 +286,7 @@ export default function DocumentGenerator() {
                   <input
                     type='text'
                     {...register('referralSource')}
-                    className='w-full border rounded-md p-2 bg-gray-50'
-                    readOnly
+                    className='w-full border rounded-md p-2'
                   />
                 </div>
                 <div>
@@ -299,8 +296,7 @@ export default function DocumentGenerator() {
                   <input
                     type='text'
                     {...register('cordinatorName')}
-                    className='w-full border rounded-md p-2 bg-gray-50'
-                    readOnly
+                    className='w-full border rounded-md p-2'
                   />
                 </div>
               </div>
