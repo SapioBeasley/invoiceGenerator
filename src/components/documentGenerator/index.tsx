@@ -439,13 +439,16 @@ export default function DocumentGenerator() {
                 <div className='grid grid-cols-2 gap-4'>
                   <div>
                     <label className='block text-sm font-medium mb-1'>
-                      Signer Name (Print Name)
+                      Signer Name
                     </label>
-                    <input
-                      type='text'
+                    <select
                       {...register('printName')}
-                      className='w-full border rounded-md p-2'
-                    />
+                      className='w-full border rounded-md p-2 bg-white'
+                    >
+                      <option value=''>Select Signer...</option>
+                      <option value='Keianna Morris'>Keianna Morris</option>
+                      <option value='Rodney Braxton'>Rodney Braxton</option>
+                    </select>
                   </div>
                   <div>
                     <label className='block text-sm font-medium mb-1'>

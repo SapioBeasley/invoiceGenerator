@@ -318,7 +318,36 @@ export const generateDocumentPDF = async (data: DocumentFormData) => {
     prepText += '.';
   }
 
-  addText(prepText, 11, false, 'left', 0.5);
+  addText(prepText, 11, false, 'left', 0.2);
+
+  // Add Signature Image if applicable
+  try {
+    let signatureFile = '';
+    if (data.printName === 'Keianna Morris') {
+      signatureFile = '/kMorrisSignature.png';
+    } else if (data.printName === 'Rodney Braxton') {
+      signatureFile = '/rBraxtonSignature.png';
+    }
+
+    if (signatureFile) {
+      const sigImg = await loadImage(signatureFile);
+      const sigWidth = 2; // 2 inches wide
+      const sigHeight = (sigImg.height * sigWidth) / sigImg.width;
+
+      if (cursorY + sigHeight + 0.5 > pageHeight - margin) {
+        doc.addPage();
+        cursorY = margin + 0.6;
+      }
+
+      doc.addImage(sigImg, 'PNG', margin, cursorY, sigWidth, sigHeight);
+      cursorY += sigHeight + 0.05;
+    } else {
+      cursorY += 0.5; // space for manual signature if no digital signature
+    }
+  } catch (error) {
+    console.warn('Failed to load signature', error);
+    cursorY += 0.5;
+  }
 
   addText('_________________________________________', 11);
   addText(`${data.printName || 'Name'}, ${data.position || 'Position'}`, 11);
