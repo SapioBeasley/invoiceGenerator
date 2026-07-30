@@ -8,6 +8,7 @@ export interface ClientData {
   address: string;
   referralSource: string;
   cordinatorName: string;
+  goals: string[];
 }
 
 export interface TableCell {

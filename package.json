@@ -3,13 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:migrate": "node scripts/migrate-neon.mjs",
+    "reference-pdfs:create": "node scripts/create-reference-pdfs.mjs",
+    "reference-pdfs:brand": "swift scripts/brand-reference-pdfs.swift",
+    "reference-pdfs:markdown": "node scripts/generate-markdown-pdfs.mjs",
+    "reference-pdfs:markdown:single": "node scripts/generate-markdown-pdf.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-popover": "^1.1.4",
     "@radix-ui/react-slot": "^1.1.1",
@@ -21,6 +27,7 @@
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.471.1",
     "next": "16.2.4",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.5",
     "react-day-picker": "8.10.1",
     "react-dom": "19.2.5",

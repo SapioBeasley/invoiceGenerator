@@ -6,7 +6,12 @@
     "dob": "1995-05-04",
     "address": "Leigh Braxton, 3675 Glenrose Ave., Altadena, CA. 91001",
     "referralSource": "Frank D. Lanterman Regional Center",
-    "cordinatorName": "Irene Owuor"
+    "cordinatorName": "Irene Owuor",
+    "goals": [
+      "Agitation",
+      "Property Destruction",
+      "Running to Street to Observe Sirens"
+    ]
   },
   {
     "id": "c2",
@@ -15,7 +20,12 @@
     "dob": "1997-02-05",
     "address": "3675 Glenrose Avenue, Altadena, CA 91001",
     "referralSource": "San Gabriel/Pomona Regional Center",
-    "cordinatorName": "Heather Paz"
+    "cordinatorName": "Heather Paz",
+    "goals": [
+      "Agitation",
+      "Ready on Time",
+      "Handwashing"
+    ]
   },
   {
     "id": "c3",
@@ -24,6 +34,11 @@
     "dob": "1992-11-04",
     "address": "3675 Glenrose Ave., Altadena, CA. 91001",
     "referralSource": "San Gabriel/Pomona Regional Center",
-    "cordinatorName": "Lisa Quihuiz"
+    "cordinatorName": "Lisa Quihuiz",
+    "goals": [
+      "Property Destruction",
+      "Discriminate High Fat Foods",
+      "Face Masks/Social Distancing"
+    ]
   }
 ]
