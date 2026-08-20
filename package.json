@@ -8,8 +8,6 @@
     "start": "next start",
     "lint": "eslint .",
     "db:migrate": "node scripts/migrate-neon.mjs",
-    "reference-pdfs:create": "node scripts/create-reference-pdfs.mjs",
-    "reference-pdfs:brand": "swift scripts/brand-reference-pdfs.swift",
     "reference-pdfs:markdown": "node scripts/generate-markdown-pdfs.mjs",
     "reference-pdfs:markdown:single": "node scripts/generate-markdown-pdf.mjs"
   },
