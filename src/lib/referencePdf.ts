@@ -101,14 +101,6 @@ export const referencePdfRanges: ReferencePdfRange[] = [
     filename: 'personal-community-and-valued-experiences.pdf',
   },
   {
-    id: 'bloodborne-pathogens',
-    sourcePath: '/HDS%20docs%2007-21-2026_15-47-07-313.pdf',
-    title: 'Bloodborne Pathogens',
-    description: 'Bloodborne disease risks, standard precautions, exposure procedures, and safety rules.',
-    pages: [29, 30, 31, 32, 33],
-    filename: 'bloodborne-pathogens.pdf',
-  },
-  {
     id: 'injury-illness-prevention',
     sourcePath: '/HDS%20docs%2007-21-2026_15-47-07-313.pdf',
     title: 'Injury and Illness Prevention Program',
