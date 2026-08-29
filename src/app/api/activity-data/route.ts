@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/neon';
+import { getAuthContext } from '@/lib/authorization';
+
+export const runtime = 'nodejs';
+
+const getUnauthorizedResponse = () =>
+  NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
 interface ClientRow {
   id: string;
@@ -21,6 +27,25 @@ interface ActivityRow {
   goalValues: unknown;
 }
 
+interface ScheduleRow {
+  id: string;
+  clientId: string;
+  date: string;
+  time: string;
+  location: string;
+  purpose: string;
+  clientInput: string;
+  staff: string;
+}
+
+interface GroomingRow {
+  id: string;
+  clientId: string;
+  date: string;
+  itemLabel: string;
+  rating: string;
+}
+
 interface ActivityRequest {
   type: 'activity';
   id: string;
@@ -31,6 +56,25 @@ interface ActivityRequest {
   goalValues: Record<string, string>;
 }
 
+interface ScheduleRequest {
+  type: 'schedule';
+  id: string;
+  clientId: string;
+  date: string;
+  time?: string;
+  location?: string;
+  purpose?: string;
+  clientInput?: string;
+  staff?: string;
+}
+
+interface GroomingRequest {
+  type: 'grooming';
+  clientId: string;
+  date: string;
+  entries: { id: string; itemLabel: string; rating: string }[];
+}
+
 interface GoalRequest {
   type: 'goal';
   clientId: string;
@@ -38,13 +82,13 @@ interface GoalRequest {
 }
 
 interface DeleteRequest {
-  type: 'activity' | 'goal';
+  type: 'activity' | 'goal' | 'schedule' | 'grooming';
   id?: string;
   clientId?: string;
   goal?: string;
 }
 
-type ActivityDataRequest = Partial<ActivityRequest> | Partial<GoalRequest>;
+type ActivityDataRequest = ActivityRequest | GoalRequest | ScheduleRequest | GroomingRequest;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -64,14 +108,27 @@ const getGoalValues = (value: unknown): Record<string, string> => {
   return values;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    await sql`
-      DELETE FROM activities
-      WHERE activity_date < CURRENT_DATE - INTERVAL '1 year'
-    `;
+    const { session } = await getAuthContext(request.headers);
+    if (!session) return getUnauthorizedResponse();
 
-    const [clientRows, activityRows] = await Promise.all([
+    await Promise.all([
+      sql`
+        DELETE FROM activities
+        WHERE activity_date < CURRENT_DATE - INTERVAL '1 year'
+      `,
+      sql`
+        DELETE FROM schedule_entries
+        WHERE entry_date < CURRENT_DATE - INTERVAL '1 year'
+      `,
+      sql`
+        DELETE FROM grooming_entries
+        WHERE entry_date < CURRENT_DATE - INTERVAL '1 year'
+      `,
+    ]);
+
+    const [clientRows, activityRows, scheduleRows, groomingRows] = await Promise.all([
       sql`
         SELECT
           c.id,
@@ -107,6 +164,31 @@ export async function GET() {
         GROUP BY a.id
         ORDER BY a.activity_date DESC, a.created_at DESC
       `,
+      sql`
+        SELECT
+          s.id,
+          s.client_id AS "clientId",
+          s.entry_date::text AS date,
+          s.entry_time AS time,
+          s.location,
+          s.purpose,
+          s.client_input AS "clientInput",
+          s.staff
+        FROM schedule_entries s
+        WHERE s.entry_date >= CURRENT_DATE - INTERVAL '1 year'
+        ORDER BY s.entry_date DESC, s.created_at DESC
+      `,
+      sql`
+        SELECT
+          g.id,
+          g.client_id AS "clientId",
+          g.entry_date::text AS date,
+          g.item_label AS "itemLabel",
+          g.rating
+        FROM grooming_entries g
+        WHERE g.entry_date >= CURRENT_DATE - INTERVAL '1 year'
+        ORDER BY g.entry_date DESC, g.created_at DESC
+      `,
     ]);
 
     const clients = (clientRows as unknown as ClientRow[]).map((client) => ({
@@ -118,8 +200,10 @@ export async function GET() {
       notes: activity.notes ?? undefined,
       goalValues: getGoalValues(activity.goalValues),
     }));
+    const scheduleEntries = scheduleRows as unknown as ScheduleRow[];
+    const groomingEntries = groomingRows as unknown as GroomingRow[];
 
-    return NextResponse.json({ clients, activities });
+    return NextResponse.json({ clients, activities, scheduleEntries, groomingEntries });
   } catch (error) {
     console.error('Failed to load activity data', error);
     return NextResponse.json(
@@ -131,6 +215,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const { session } = await getAuthContext(request.headers);
+    if (!session) return getUnauthorizedResponse();
+
     const body = (await request.json()) as ActivityDataRequest;
 
     if (body.type === 'goal') {
@@ -182,6 +269,60 @@ export async function POST(request: Request) {
       });
     }
 
+    if (body.type === 'schedule') {
+      const id = getString(body.id);
+      const clientId = getString(body.clientId);
+      const date = getString(body.date);
+      if (!id || !clientId || !date) {
+        return NextResponse.json({ error: 'Client and date are required.' }, { status: 400 });
+      }
+
+      const entry = {
+        id,
+        clientId,
+        date,
+        time: getString(body.time),
+        location: getString(body.location),
+        purpose: getString(body.purpose),
+        clientInput: getString(body.clientInput),
+        staff: getString(body.staff),
+      };
+      await sql`
+        INSERT INTO schedule_entries (id, client_id, entry_date, entry_time, location, purpose, client_input, staff)
+        VALUES (${entry.id}, ${entry.clientId}, ${entry.date}, ${entry.time}, ${entry.location}, ${entry.purpose}, ${entry.clientInput}, ${entry.staff})
+      `;
+      return NextResponse.json({ entry });
+    }
+
+    if (body.type === 'grooming') {
+      const clientId = getString(body.clientId);
+      const date = getString(body.date);
+      const entries = Array.isArray(body.entries)
+        ? body.entries
+            .map((entry) => ({
+              id: getString(entry.id),
+              itemLabel: getString(entry.itemLabel),
+              rating: getString(entry.rating),
+            }))
+            .filter((entry) => entry.id && entry.itemLabel && entry.rating)
+        : [];
+      if (!clientId || !date || entries.length === 0) {
+        return NextResponse.json({ error: 'Client, date, and at least one rating are required.' }, { status: 400 });
+      }
+
+      await sql.transaction(
+        entries.map((entry) => sql`
+          INSERT INTO grooming_entries (id, client_id, entry_date, item_label, rating)
+          VALUES (${entry.id}, ${clientId}, ${date}, ${entry.itemLabel}, ${entry.rating})
+          ON CONFLICT (client_id, entry_date, item_label)
+          DO UPDATE SET rating = EXCLUDED.rating
+        `),
+      );
+      return NextResponse.json({
+        entries: entries.map((entry) => ({ ...entry, clientId, date })),
+      });
+    }
+
     return NextResponse.json({ error: 'Unsupported activity data request.' }, { status: 400 });
   } catch (error) {
     console.error('Failed to save activity data', error);
@@ -191,10 +332,23 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const { session } = await getAuthContext(request.headers);
+    if (!session) return getUnauthorizedResponse();
+
     const body = (await request.json()) as DeleteRequest;
 
     if (body.type === 'activity' && body.id) {
       await sql`DELETE FROM activities WHERE id = ${body.id}`;
+      return NextResponse.json({ success: true });
+    }
+
+    if (body.type === 'schedule' && body.id) {
+      await sql`DELETE FROM schedule_entries WHERE id = ${body.id}`;
+      return NextResponse.json({ success: true });
+    }
+
+    if (body.type === 'grooming' && body.id) {
+      await sql`DELETE FROM grooming_entries WHERE id = ${body.id}`;
       return NextResponse.json({ success: true });
     }
 

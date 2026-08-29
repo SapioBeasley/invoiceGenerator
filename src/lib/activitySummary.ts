@@ -1,9 +1,6 @@
 import dayjs, { Dayjs } from 'dayjs';
 import type { ActivityDateRange, ClientActivity } from '@/types/activitySummary';
 
-export const ACTIVITY_STORAGE_KEY = 'invoice-generator-client-activities';
-export const CLIENT_STORAGE_KEY = 'invoice-generator-clients';
-
 export const getMonthDateRange = (
   month: string,
   today: Dayjs = dayjs(),

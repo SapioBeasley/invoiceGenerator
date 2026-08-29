@@ -1,10 +1,11 @@
-'use client';
-
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import GroomingChecklist from '@/components/groomingChecklist';
+import { requirePageAccess } from '@/lib/authorization';
 
-export default function GroomingChecklistPage() {
+export default async function GroomingChecklistPage() {
+  await requirePageAccess();
+
   return (
     <div className='min-h-screen bg-gray-50 p-8'>
       <div className='max-w-6xl mx-auto mb-6'>

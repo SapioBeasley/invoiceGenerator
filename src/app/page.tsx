@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import {
   Card,
@@ -8,9 +6,16 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
-import { CalendarDays, ClipboardCheck, ClipboardList, FileText, FileSpreadsheet, Files, ListChecks, MessageSquareText } from 'lucide-react';
+import { CalendarDays, ClipboardCheck, ClipboardList, FileText, FileSpreadsheet, Files, ListChecks, MessageSquareText, Users } from 'lucide-react';
+import AuthControls from '@/components/authControls';
+import { requirePageAccess } from '@/lib/authorization';
+import { getVisibleDashboardModules, type DashboardModuleKey } from '@/lib/dashboardModules';
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  const { session, isAdmin } = await requirePageAccess();
+  const visibleModules = getVisibleDashboardModules(isAdmin);
+  const isModuleVisible = (module: DashboardModuleKey) => visibleModules.includes(module);
+
   return (
     <div className='min-h-screen bg-gray-50 p-8'>
       <div className='max-w-5xl mx-auto space-y-8'>
@@ -23,8 +28,10 @@ export default function AdminDashboard() {
           </p>
         </div>
 
+        <AuthControls email={session.user.email} />
+
         <div className='grid md:grid-cols-3 gap-6'>
-          <Link href='/invoice-generator' className='block group'>
+          {isModuleVisible('invoice-generator') ? <Link href='/invoice-generator' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
               <CardHeader>
                 <div className='flex items-center space-x-3 mb-2'>
@@ -44,7 +51,7 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>
+          </Link> : null}
 
           <Link href='/grooming-checklist' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
@@ -67,7 +74,7 @@ export default function AdminDashboard() {
             </Card>
           </Link>
 
-          <Link href='/monthly-questionnaire' className='block group'>
+          {isModuleVisible('monthly-questionnaire') ? <Link href='/monthly-questionnaire' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
               <CardHeader>
                 <div className='flex items-center space-x-3 mb-2'>
@@ -86,7 +93,7 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>
+          </Link> : null}
 
           <Link href='/weekly-schedule' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
@@ -109,7 +116,7 @@ export default function AdminDashboard() {
             </Card>
           </Link>
 
-          <Link href='/behavioral-assessment' className='block group'>
+          {isModuleVisible('behavioral-assessment') ? <Link href='/behavioral-assessment' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
               <CardHeader>
                 <div className='flex items-center space-x-3 mb-2'>
@@ -128,7 +135,7 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>
+          </Link> : null}
 
           <Link href='/activity-summary' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
@@ -152,7 +159,22 @@ export default function AdminDashboard() {
             </Card>
           </Link>
 
-          <Link href='/reference-pdfs' className='block group'>
+          {isModuleVisible('account-management') ? <Link href='/account-management' className='block group'>
+            <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
+              <CardHeader>
+                <div className='flex items-center space-x-3 mb-2'>
+                  <div className='p-2 bg-rose-100 text-rose-600 rounded-lg group-hover:bg-rose-600 group-hover:text-white transition-colors'>
+                    <Users className='w-6 h-6' />
+                  </div>
+                  <CardTitle>Account Access</CardTitle>
+                </div>
+                <CardDescription>Manage allowed signup emails and account types.</CardDescription>
+              </CardHeader>
+              <CardContent><p className='text-sm text-gray-500'>Add users, review signup status, change roles, or remove signup access.</p></CardContent>
+            </Card>
+          </Link> : null}
+
+          {isModuleVisible('reference-pdfs') ? <Link href='/reference-pdfs' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
               <CardHeader>
                 <div className='flex items-center space-x-3 mb-2'>
@@ -171,9 +193,9 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>
+          </Link> : null}
 
-          <Link href='/document-generator' className='block group'>
+          {isModuleVisible('document-generator') ? <Link href='/document-generator' className='block group'>
             <Card className='h-full transition-all hover:shadow-md hover:border-primary'>
               <CardHeader>
                 <div className='flex items-center space-x-3 mb-2'>
@@ -193,7 +215,7 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </Link>
+          </Link> : null}
         </div>
       </div>
     </div>

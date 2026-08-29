@@ -1,10 +1,11 @@
-'use client';
-
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import ActivitySummary from '@/components/activitySummary';
+import { requirePageAccess } from '@/lib/authorization';
 
-export default function ActivitySummaryPage() {
+export default async function ActivitySummaryPage() {
+  await requirePageAccess();
+
   return (
     <div className='min-h-screen bg-gray-50 p-8'>
       <div className='max-w-6xl mx-auto mb-6'>

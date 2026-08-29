@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import clientsData from '@/data/clients.json';
 import { getMonthDateRange } from '@/lib/activitySummary';
+import { getActivitiesForClient } from '@/lib/loggerData';
 import { generateActivitySummaryPDF } from '@/lib/activitySummaryPdf';
 import { ClientActivity } from '@/types/activitySummary';
 import { ClientData } from '@/types/documentGenerator';
@@ -27,25 +28,6 @@ const createActivityId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-interface ActivityApiData {
-  clients: ActivityClient[];
-  activities: ClientActivity[];
-}
-
-interface ActivityApiResponse {
-  activity: ClientActivity;
-}
-
-const apiRequest = async <T,>(
-  url: string,
-  options?: RequestInit,
-): Promise<T> => {
-  const response = await fetch(url, options);
-  const payload = (await response.json()) as { error?: string } & T;
-  if (!response.ok) throw new Error(payload.error || 'The request failed.');
-  return payload;
-};
-
 const ActivitySummary = () => {
   const [clients, setClients] = useState<ActivityClient[]>(initialClients);
   const [activities, setActivities] = useState<ClientActivity[]>([]);
@@ -58,45 +40,33 @@ const ActivitySummary = () => {
   );
   const [newGoal, setNewGoal] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
   const selectedClient = clients.find((client) => client.id === selectedClientId);
   const dateRange = useMemo(() => getMonthDateRange(selectedMonth), [selectedMonth]);
   const clientActivities = useMemo(
-    () =>
-      activities
-        .filter((activity) => activity.clientId === selectedClientId)
-        .sort((a, b) => b.date.localeCompare(a.date)),
+    () => getActivitiesForClient(activities, selectedClientId),
     [activities, selectedClientId],
   );
 
   useEffect(() => {
-    const loadActivityData = async () => {
+    const loadData = async () => {
       try {
-        const data = await apiRequest<ActivityApiData>('/api/activity-data');
-        const nextSelectedClientId = data.clients.some(
-          (client) => client.id === defaultClientId,
-        )
-          ? defaultClientId
-          : data.clients[0]?.id ?? '';
-        const nextSelectedClient = data.clients.find(
-          (client) => client.id === nextSelectedClientId,
-        );
-
-        setClients(data.clients);
-        setActivities(data.activities);
-        setSelectedClientId(nextSelectedClientId);
-        setGoalValues(createGoalValues(nextSelectedClient?.goals ?? []));
+        const response = await fetch('/api/activity-data');
+        if (!response.ok) throw new Error('Unable to load activity data.');
+        const data = (await response.json()) as { clients?: ActivityClient[]; activities?: ClientActivity[] };
+        if (data.clients?.length) {
+          setClients(data.clients);
+          const nextClient = data.clients.find((client) => client.id === defaultClientId) ?? data.clients[0];
+          setSelectedClientId(nextClient.id);
+          setGoalValues(createGoalValues(nextClient.goals));
+        }
+        setActivities(data.activities ?? []);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load activity data.');
-      } finally {
-        setIsLoading(false);
       }
     };
-
-    void loadActivityData();
+    void loadData();
   }, []);
 
   const handleClientChange = (clientId: string) => {
@@ -111,57 +81,43 @@ const ActivitySummary = () => {
     const goal = newGoal.trim();
     if (!selectedClient || !goal || selectedClient.goals.includes(goal)) return;
 
-    setIsSaving(true);
-    setError('');
     try {
-      await apiRequest('/api/activity-data', {
+      const response = await fetch('/api/activity-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'goal', clientId: selectedClient.id, goal }),
       });
-      setClients((currentClients) =>
-        currentClients.map((client) =>
-          client.id === selectedClient.id
-            ? { ...client, goals: [...client.goals, goal] }
-            : client,
-        ),
-      );
+      if (!response.ok) throw new Error('Unable to save goal.');
+      setClients((currentClients) => currentClients.map((client) =>
+        client.id === selectedClient.id ? { ...client, goals: [...client.goals, goal] } : client));
       setGoalValues((currentValues) => ({ ...currentValues, [goal]: '' }));
       setNewGoal('');
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save the goal.');
-    } finally {
-      setIsSaving(false);
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save goal.');
     }
   };
 
   const handleRemoveGoal = async (goalToRemove: string) => {
     if (!selectedClient) return;
 
-    setIsSaving(true);
-    setError('');
     try {
-      await apiRequest('/api/activity-data', {
+      const response = await fetch('/api/activity-data', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'goal', clientId: selectedClient.id, goal: goalToRemove }),
       });
-      setClients((currentClients) =>
-        currentClients.map((client) =>
-          client.id === selectedClient.id
-            ? { ...client, goals: client.goals.filter((goal) => goal !== goalToRemove) }
-            : client,
-        ),
-      );
+      if (!response.ok) throw new Error('Unable to delete goal.');
+      setClients((currentClients) => currentClients.map((client) =>
+        client.id === selectedClient.id
+          ? { ...client, goals: client.goals.filter((goal) => goal !== goalToRemove) }
+          : client));
       setGoalValues((currentValues) => {
         const nextValues = { ...currentValues };
         delete nextValues[goalToRemove];
         return nextValues;
       });
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to remove the goal.');
-    } finally {
-      setIsSaving(false);
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete goal.');
     }
   };
 
@@ -180,51 +136,35 @@ const ActivitySummary = () => {
       notes: activityNotes.trim() || undefined,
     };
 
-    setIsSaving(true);
-    setError('');
     try {
-      const result = await apiRequest<ActivityApiResponse>('/api/activity-data', {
+      const response = await fetch('/api/activity-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'activity', ...activity }),
       });
-      setActivities((currentActivities) => [...currentActivities, result.activity]);
+      const data = (await response.json()) as { activity?: ClientActivity; error?: string };
+      if (!response.ok || !data.activity) throw new Error(data.error ?? 'Unable to save activity.');
+      setActivities((currentActivities) => [...currentActivities, data.activity as ClientActivity]);
       setActivityDescription('');
       setActivityNotes('');
       setGoalValues(createGoalValues(selectedClient.goals));
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save the activity.');
-    } finally {
-      setIsSaving(false);
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save activity.');
     }
   };
 
   const handleDeleteActivity = async (activityId: string) => {
-    setIsSaving(true);
-    setError('');
-    try {
-      await apiRequest('/api/activity-data', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'activity', id: activityId }),
-      });
-      setActivities((currentActivities) =>
-        currentActivities.filter((activity) => activity.id !== activityId),
-      );
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete the activity.');
-    } finally {
-      setIsSaving(false);
-    }
+    const response = await fetch('/api/activity-data', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'activity', id: activityId }),
+    });
+    if (response.ok) setActivities((currentActivities) => currentActivities.filter((activity) => activity.id !== activityId));
   };
 
   const handleDownload = () => {
     if (selectedClient) generateActivitySummaryPDF(selectedClient, activities, dateRange);
   };
-
-  if (isLoading) {
-    return <p className='text-gray-600'>Loading activity data…</p>;
-  }
 
   if (!selectedClient) {
     return <p className='text-gray-600'>No clients are available.</p>;
@@ -239,11 +179,7 @@ const ActivitySummary = () => {
         <p className='mt-2 text-gray-600'>
           Track a client&apos;s goals and export a calendar-based summary form.
         </p>
-        {error && (
-          <p className='mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700'>
-            {error}
-          </p>
-        )}
+        {error && <p className='mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700'>{error}</p>}
       </div>
 
       <Card>
@@ -286,8 +222,7 @@ const ActivitySummary = () => {
                     type='button'
                     variant='outline'
                     size='icon'
-                    onClick={() => handleRemoveGoal(goal)}
-                    disabled={isSaving}
+                    onClick={() => void handleRemoveGoal(goal)}
                     aria-label={`Remove ${goal}`}
                   >
                     <Trash2 />
@@ -302,13 +237,13 @@ const ActivitySummary = () => {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    handleAddGoal();
+                    void handleAddGoal();
                   }
                 }}
                 placeholder='Add a goal for this client'
                 aria-label='New goal'
               />
-              <Button type='button' variant='outline' onClick={handleAddGoal} disabled={isSaving}>
+              <Button type='button' variant='outline' onClick={() => void handleAddGoal()}>
                 <Plus />
                 Add goal
               </Button>
@@ -384,7 +319,7 @@ const ActivitySummary = () => {
               />
             </div>
 
-            <Button type='submit' disabled={isSaving}>
+            <Button type='submit'>
               <Plus />
               Add activity
             </Button>
@@ -396,7 +331,7 @@ const ActivitySummary = () => {
         <CardHeader>
           <CardTitle>Saved activities</CardTitle>
           <CardDescription>
-            Activities are saved in Neon Postgres and remain tied to {selectedClient.name}.
+            Activities are saved in this browser and remain tied to {selectedClient.name}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -427,8 +362,7 @@ const ActivitySummary = () => {
                       type='button'
                       variant='ghost'
                       size='icon'
-                      onClick={() => handleDeleteActivity(activity.id)}
-                      disabled={isSaving}
+                      onClick={() => void handleDeleteActivity(activity.id)}
                       aria-label={`Delete activity from ${activity.date}`}
                     >
                       <Trash2 />
@@ -478,7 +412,7 @@ const ActivitySummary = () => {
 
       <div className='flex items-center gap-2 text-sm text-gray-500'>
         <ClipboardList className='h-4 w-4' />
-        Data is stored in Neon Postgres and is available across devices.
+        Data is stored locally in this browser until a database is connected.
       </div>
     </div>
   );

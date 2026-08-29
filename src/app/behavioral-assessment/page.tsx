@@ -1,10 +1,11 @@
-'use client';
-
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import BehavioralAssessment from '@/components/behavioralAssessment';
+import { requirePageAccess } from '@/lib/authorization';
 
-export default function BehavioralAssessmentPage() {
+export default async function BehavioralAssessmentPage() {
+  await requirePageAccess(true);
+
   return (
     <div className='min-h-screen bg-gray-50 p-8'>
       <div className='max-w-5xl mx-auto mb-6'>

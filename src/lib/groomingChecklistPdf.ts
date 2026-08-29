@@ -1,85 +1,73 @@
 import autoTable from 'jspdf-autotable';
 import jsPDF from 'jspdf';
 import dayjs from 'dayjs';
-import { GroomingChecklistData } from '@/types/groomingChecklist';
+import type { GroomingEntry, GroomingExportOptions } from '@/types/groomingChecklist';
 
-const formatDate = (date: string): string =>
-  date ? dayjs(date).format('M/D') : '';
+interface GroomingClient {
+  id: string;
+  name: string;
+}
 
-export const generateGroomingChecklistPDF = (data: GroomingChecklistData) => {
+export const generateGroomingChecklistPDF = (
+  client: GroomingClient,
+  entries: GroomingEntry[],
+  month: string,
+  options: GroomingExportOptions,
+) => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
-  const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 28;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const monthLabel = month ? dayjs(`${month}-01`).format('MMMM YYYY') : '';
+  const sortedEntries = [...entries]
+    .filter((entry) => entry.clientId === client.id && entry.date.startsWith(month))
+    .sort((a, b) => `${a.date} ${a.itemLabel}`.localeCompare(`${b.date} ${b.itemLabel}`));
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text('HillTop Developmental Services: Individual Data Summary', margin, 30);
   doc.setFontSize(10);
-  doc.text(`Client’s Name: ${data.clientName}`, margin, 48);
-  doc.text(`Task: ${data.task}`, margin, 63);
-  doc.text(`Month/Year: ${data.month ? dayjs(`${data.month}-01`).format('MM/YYYY') : ''}`, margin, 78);
+  doc.text(`Client’s Name: ${client.name}`, margin, 48);
+  doc.text(`Task: ${options.task}`, margin, 63);
+  doc.text(`Month/Year: ${monthLabel}`, margin, 78);
   doc.setFont('helvetica', 'normal');
   doc.text('Rating Method:', margin, 94);
-  const ratingLines = doc.splitTextToSize(data.ratingMethod || ' ', pageWidth - 150) as string[];
-  doc.text(ratingLines, margin + 75, 94);
-
-  const head = [['Date: Month/Day', ...data.dates.map(formatDate)]];
-  const body = data.items.map((item, index) => [
-    `${index + 1}) ${item.label}`,
-    ...data.dates.map((date) => item.ratings[date] ?? ''),
-  ]);
-  const totals = [
-    'Totals:',
-    ...data.dates.map((date) =>
-      data.items.filter((item) => item.ratings[date]?.trim() === '1').length.toString(),
-    ),
-  ];
+  doc.text(doc.splitTextToSize(options.ratingMethod || ' ', pageWidth - 150), margin + 75, 94);
 
   autoTable(doc, {
     startY: 115,
     margin: { left: margin, right: margin, top: 24, bottom: 28 },
-    head,
-    body: [...body, totals],
+    head: [['DATE', 'CHECKLIST ITEM', 'RATING']],
+    body: sortedEntries.map((entry) => [dayjs(entry.date).format('M/D/YYYY'), entry.itemLabel, entry.rating]),
     theme: 'grid',
-    styles: {
-      font: 'helvetica',
-      fontSize: data.dates.length > 8 ? 7 : 8,
-      cellPadding: 4,
-      lineColor: [170, 170, 170],
-      lineWidth: 0.5,
-      textColor: [30, 30, 30],
-    },
-    headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-    },
-    columnStyles: {
-      0: { cellWidth: Math.min(220, pageWidth * 0.28) },
-    },
-    didParseCell: (hookData) => {
-      if (hookData.section === 'body' && hookData.row.index === body.length) {
-        hookData.cell.styles.fontStyle = 'bold';
-        hookData.cell.styles.fillColor = [240, 240, 240];
-      }
-    },
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, lineColor: [170, 170, 170], lineWidth: 0.5, textColor: [30, 30, 30] },
+    headStyles: { fillColor: [41, 128, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: { 0: { cellWidth: 90 }, 2: { cellWidth: 90 } },
   });
 
-  const tableEnd = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 430;
-  let y = tableEnd + 22;
+  const tableEnd = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 140;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('Barriers to progress:', margin, y);
-  y += 18;
+  doc.text('Recorded completions by date:', margin, tableEnd + 24);
+  autoTable(doc, {
+    startY: tableEnd + 32,
+    margin: { left: margin, right: margin, top: 24, bottom: 28 },
+    head: [['DATE', 'COMPLETED ITEMS']],
+    body: [...new Set(sortedEntries.map((entry) => entry.date))].map((date) => [
+      dayjs(date).format('M/D/YYYY'),
+      sortedEntries.filter((entry) => entry.date === date && entry.rating === '1').length.toString(),
+    ]),
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: [190, 190, 190], lineWidth: 0.5 },
+    headStyles: { fillColor: [41, 128, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
+  });
+
+  const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? tableEnd + 50;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text(
-    doc.splitTextToSize(data.barriersToProgress || ' ', pageWidth - margin * 2),
+    doc.splitTextToSize(`Barriers to progress: ${options.barriersToProgress || ''}`, pageWidth - margin * 2),
     margin,
-    y,
+    finalY + 24,
   );
-
-  doc.save(
-    `grooming-checklist-${data.clientName.replace(/\s+/g, '-').toLowerCase()}-${data.month || 'report'}.pdf`,
-  );
+  doc.save(`grooming-checklist-${client.name.replace(/\s+/g, '-').toLowerCase()}-${month || 'report'}.pdf`);
 };

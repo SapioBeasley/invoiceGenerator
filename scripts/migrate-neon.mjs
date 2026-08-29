@@ -11,6 +11,7 @@ if (!databaseUrl) throw new Error('DATABASE_URL is not configured');
 
 const sql = neon(databaseUrl);
 const clients = JSON.parse(fs.readFileSync('src/data/clients.json', 'utf8'));
+const getConfiguredEmails = (value) => [...new Set((value ?? '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean))];
 
 await sql`
   CREATE TABLE IF NOT EXISTS clients (
@@ -24,6 +25,30 @@ await sql`
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
 `;
+
+await sql`
+  CREATE TABLE IF NOT EXISTS signup_allowlist (
+    email TEXT PRIMARY KEY,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`;
+
+for (const email of getConfiguredEmails(process.env.FULL_ACCESS_EMAILS)) {
+  await sql`
+    INSERT INTO signup_allowlist (email, role)
+    VALUES (${email}, 'admin')
+    ON CONFLICT (email) DO NOTHING
+  `;
+}
+
+for (const email of getConfiguredEmails(process.env.APPROVED_SIGNUP_EMAILS)) {
+  await sql`
+    INSERT INTO signup_allowlist (email, role)
+    VALUES (${email}, 'user')
+    ON CONFLICT (email) DO NOTHING
+  `;
+}
 
 await sql`
   CREATE TABLE IF NOT EXISTS client_goals (
@@ -55,8 +80,36 @@ await sql`
   )
 `;
 
+await sql`
+  CREATE TABLE IF NOT EXISTS schedule_entries (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    entry_date DATE NOT NULL,
+    entry_time TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL DEFAULT '',
+    client_input TEXT NOT NULL DEFAULT '',
+    staff TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`;
+
+await sql`
+  CREATE TABLE IF NOT EXISTS grooming_entries (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    entry_date DATE NOT NULL,
+    item_label TEXT NOT NULL,
+    rating TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (client_id, entry_date, item_label)
+  )
+`;
+
 await sql`CREATE INDEX IF NOT EXISTS activities_client_date_idx ON activities(client_id, activity_date)`;
 await sql`CREATE INDEX IF NOT EXISTS activities_date_idx ON activities(activity_date)`;
+await sql`CREATE INDEX IF NOT EXISTS schedule_entries_client_date_idx ON schedule_entries(client_id, entry_date)`;
+await sql`CREATE INDEX IF NOT EXISTS grooming_entries_client_date_idx ON grooming_entries(client_id, entry_date)`;
 
 for (const client of clients) {
   await sql`
@@ -91,6 +144,16 @@ for (const client of clients) {
 await sql`
   DELETE FROM activities
   WHERE activity_date < CURRENT_DATE - INTERVAL '1 year'
+`;
+
+await sql`
+  DELETE FROM schedule_entries
+  WHERE entry_date < CURRENT_DATE - INTERVAL '1 year'
+`;
+
+await sql`
+  DELETE FROM grooming_entries
+  WHERE entry_date < CURRENT_DATE - INTERVAL '1 year'
 `;
 
 console.log('Neon activity schema and seed data are ready.');

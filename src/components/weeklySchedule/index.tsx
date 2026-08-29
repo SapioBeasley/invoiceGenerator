@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,188 +9,165 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import clientsData from '@/data/clients.json';
+import { getMonthDateRange } from '@/lib/activitySummary';
+import { getScheduleEntriesForRange } from '@/lib/loggerData';
 import { generateWeeklySchedulePDF } from '@/lib/weeklySchedulePdf';
-import { ClientData } from '@/types/documentGenerator';
-import { WeeklyScheduleData, WeeklyScheduleEntry } from '@/types/weeklySchedule';
+import type { ClientData } from '@/types/documentGenerator';
+import type { ScheduleEntry, WeeklyScheduleExportOptions } from '@/types/weeklySchedule';
 
 const fallbackClients = clientsData as ClientData[];
-
-const createEntry = (date: string, time: string): WeeklyScheduleEntry => ({
-  date,
-  time,
-  location: '',
-  purpose: '',
-  clientInput: '',
-});
-
-const createInitialForm = (client: ClientData): WeeklyScheduleData => {
-  const firstDay = dayjs().startOf('week').add(1, 'day');
-  return {
-    primaryClientId: client.id,
-    primaryClientName: client.name,
-    additionalClients: [],
-    staff: '',
-    firstDayOfWeek: firstDay.format('YYYY-MM-DD'),
-    weekLabel: 'Week 3',
-    pickupDropoff: ['', '', ''],
-    copyNotes: 'Keep it brief and short. Highlight one thing on each client. Describe client interactions, body language, thoughts, dialogue, personality, interests, actions, or responses.',
-    entries: [
-      createEntry(firstDay.format('YYYY-MM-DD'), '9:00 AM'),
-      createEntry(firstDay.format('YYYY-MM-DD'), '10:00 AM'),
-      createEntry(firstDay.format('YYYY-MM-DD'), '11:00 AM'),
-      createEntry(firstDay.format('YYYY-MM-DD'), '12:00 PM'),
-      createEntry(firstDay.add(1, 'day').format('YYYY-MM-DD'), '9:00 AM'),
-      createEntry(firstDay.add(1, 'day').format('YYYY-MM-DD'), '10:00 AM'),
-      createEntry(firstDay.add(1, 'day').format('YYYY-MM-DD'), '11:00 AM'),
-      createEntry(firstDay.add(1, 'day').format('YYYY-MM-DD'), '12:00 PM'),
-    ],
-  };
-};
+const createId = (): string =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const WeeklySchedule = () => {
   const [clients, setClients] = useState<ClientData[]>(fallbackClients);
-  const [form, setForm] = useState<WeeklyScheduleData>(createInitialForm(fallbackClients[0]));
+  const [entries, setEntries] = useState<ScheduleEntry[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState(fallbackClients[0]?.id ?? '');
+  const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
+  const [entryDate, setEntryDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [entryTime, setEntryTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [clientInput, setClientInput] = useState('');
+  const [staff, setStaff] = useState('');
+  const [additionalClients, setAdditionalClients] = useState('');
+  const [pickupDropoff, setPickupDropoff] = useState('');
+  const [copyNotes, setCopyNotes] = useState('');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const selectedClient = clients.find((client) => client.id === selectedClientId);
+  const dateRange = useMemo(() => getMonthDateRange(selectedMonth), [selectedMonth]);
+  const monthEntries = useMemo(
+    () => getScheduleEntriesForRange(entries, selectedClientId, dateRange),
+    [dateRange, entries, selectedClientId],
+  );
 
   useEffect(() => {
-    const loadClients = async () => {
+    const loadData = async () => {
       try {
         const response = await fetch('/api/activity-data');
-        if (!response.ok) return;
-        const data = (await response.json()) as { clients?: ClientData[] };
-        if (!data.clients?.length) return;
-        setClients(data.clients);
-        const client = data.clients.find((item) => item.id === form.primaryClientId) ?? data.clients[0];
-        setForm((current) => ({ ...current, primaryClientId: client.id, primaryClientName: client.name }));
-      } catch {
-        // Keep the seeded client list available if the database is unavailable.
+        if (!response.ok) throw new Error('Unable to load schedule data.');
+        const data = (await response.json()) as {
+          clients?: ClientData[];
+          scheduleEntries?: ScheduleEntry[];
+        };
+        if (data.clients?.length) {
+          setClients(data.clients);
+          setSelectedClientId((current) => data.clients?.some((client) => client.id === current)
+            ? current
+            : data.clients?.[0]?.id ?? '');
+        }
+        setEntries(data.scheduleEntries ?? []);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load schedule data.');
       }
     };
+    void loadData();
+  }, []);
 
-    void loadClients();
-  }, [form.primaryClientId]);
-
-  const updateForm = <K extends keyof WeeklyScheduleData>(
-    field: K,
-    value: WeeklyScheduleData[K],
-  ) => setForm((current) => ({ ...current, [field]: value }));
-
-  const updateEntry = (index: number, field: keyof WeeklyScheduleEntry, value: string) => {
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.map((entry, entryIndex) =>
-        entryIndex === index ? { ...entry, [field]: value } : entry,
-      ),
-    }));
+  const handleAddEntry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedClient || !entryDate || (!entryTime && !location && !purpose && !clientInput)) return;
+    setIsSaving(true);
+    setError('');
+    const payload = {
+      type: 'schedule',
+      id: createId(),
+      clientId: selectedClient.id,
+      date: entryDate,
+      time: entryTime,
+      location,
+      purpose,
+      clientInput,
+      staff,
+    };
+    try {
+      const response = await fetch('/api/activity-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { entry?: ScheduleEntry; error?: string };
+      if (!response.ok || !data.entry) throw new Error(data.error ?? 'Unable to save schedule entry.');
+      setEntries((current) => [data.entry as ScheduleEntry, ...current]);
+      setEntryTime('');
+      setLocation('');
+      setPurpose('');
+      setClientInput('');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save schedule entry.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const addEntry = () => {
-    setForm((current) => ({
-      ...current,
-      entries: [...current.entries, createEntry(current.firstDayOfWeek, '')],
-    }));
+  const handleDelete = async (id: string) => {
+    const response = await fetch('/api/activity-data', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'schedule', id }),
+    });
+    if (response.ok) setEntries((current) => current.filter((entry) => entry.id !== id));
   };
 
-  const removeEntry = (index: number) => {
-    setForm((current) => ({
-      ...current,
-      entries: current.entries.filter((_, entryIndex) => entryIndex !== index),
-    }));
+  const handleDownload = () => {
+    if (!selectedClient) return;
+    const options: WeeklyScheduleExportOptions = {
+      additionalClients: additionalClients.split(',').map((value) => value.trim()).filter(Boolean),
+      pickupDropoff: pickupDropoff.split(',').map((value) => value.trim()),
+      copyNotes,
+    };
+    generateWeeklySchedulePDF(selectedClient, monthEntries, dateRange, options);
   };
 
-  const updateArrayField = (field: 'additionalClients' | 'pickupDropoff', index: number, value: string) => {
-    setForm((current) => ({
-      ...current,
-      [field]: current[field].map((item, itemIndex) => itemIndex === index ? value : item),
-    }));
-  };
-
-  const addAdditionalClient = () => {
-    setForm((current) =>
-      current.additionalClients.length < 2
-        ? { ...current, additionalClients: [...current.additionalClients, ''] }
-        : current,
-    );
-  };
-
-  const removeAdditionalClient = (index: number) => {
-    setForm((current) => ({
-      ...current,
-      additionalClients: current.additionalClients.filter((_, clientIndex) => clientIndex !== index),
-    }));
-  };
-
-  const handleClientChange = (clientId: string) => {
-    const client = clients.find((item) => item.id === clientId);
-    if (client) setForm((current) => ({ ...current, primaryClientId: client.id, primaryClientName: client.name }));
-  };
+  if (!selectedClient) return <p className='text-gray-600'>No clients are available.</p>;
 
   return (
-    <div className='max-w-6xl mx-auto space-y-6'>
+    <div className='mx-auto max-w-6xl space-y-6'>
       <div>
-        <h1 className='text-3xl font-bold tracking-tight text-gray-900'>Weekly Schedule</h1>
-        <p className='mt-2 text-gray-600'>Create an editable weekly schedule based on page 9.</p>
+        <h1 className='text-3xl font-bold tracking-tight text-gray-900'>Weekly Schedule Logger</h1>
+        <p className='mt-2 text-gray-600'>Log each schedule activity as it happens, then export a month of weekly pages.</p>
+        {error && <p className='mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700'>{error}</p>}
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Schedule details</CardTitle>
-          <CardDescription>Primary client name is the only dropdown. All other fields are editable.</CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-5'>
-          <div className='grid gap-4 md:grid-cols-4'>
-            <div>
-              <Label htmlFor='scheduleClient'>Primary client</Label>
-              <select id='scheduleClient' value={form.primaryClientId} onChange={(event) => handleClientChange(event.target.value)} className='mt-2 w-full rounded-md border border-input bg-background px-3 py-2'>
-                {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-              </select>
-            </div>
-            <div><Label htmlFor='scheduleStaff'>Staff</Label><Input id='scheduleStaff' value={form.staff} onChange={(event) => updateForm('staff', event.target.value)} className='mt-2' /></div>
-            <div><Label htmlFor='scheduleFirstDay'>First day of work week</Label><Input id='scheduleFirstDay' type='date' value={form.firstDayOfWeek} onChange={(event) => updateForm('firstDayOfWeek', event.target.value)} className='mt-2' /></div>
-            <div><Label htmlFor='scheduleWeek'>Week label</Label><Input id='scheduleWeek' value={form.weekLabel} onChange={(event) => updateForm('weekLabel', event.target.value)} className='mt-2' /></div>
-          </div>
-
-          <div>
-            <div className='mb-2 flex items-center justify-between gap-4'>
-              <Label>Additional clients ({form.additionalClients.length + 1}/3 total)</Label>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={addAdditionalClient}
-                disabled={form.additionalClients.length >= 2}
-              >
-                <Plus /> Add additional client
-              </Button>
+        <CardHeader><CardTitle>Log schedule activity</CardTitle><CardDescription>Each submission saves one dated schedule row for the selected client.</CardDescription></CardHeader>
+        <CardContent>
+          <form onSubmit={handleAddEntry} className='space-y-5'>
+            <div className='grid gap-4 md:grid-cols-3'>
+              <div><Label htmlFor='scheduleClient'>Client</Label><select id='scheduleClient' value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)} className='mt-2 w-full rounded-md border border-input bg-background px-3 py-2'>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></div>
+              <div><Label htmlFor='scheduleDate'>Date</Label><Input id='scheduleDate' type='date' value={entryDate} onChange={(event) => setEntryDate(event.target.value)} className='mt-2' required /></div>
+              <div><Label htmlFor='scheduleTime'>Time</Label><Input id='scheduleTime' value={entryTime} onChange={(event) => setEntryTime(event.target.value)} placeholder='9:00 AM' className='mt-2' /></div>
             </div>
             <div className='grid gap-4 md:grid-cols-2'>
-              {form.additionalClients.map((client, index) => (
-                <div key={`client-${index}`} className='flex items-end gap-2'>
-                  <div className='flex-1'>
-                    <Label htmlFor={`additional-client-${index}`}>Additional client {index + 1}</Label>
-                    <Input id={`additional-client-${index}`} value={client} onChange={(event) => updateArrayField('additionalClients', index, event.target.value)} className='mt-2' />
-                  </div>
-                  <Button type='button' variant='ghost' size='icon' onClick={() => removeAdditionalClient(index)} aria-label={`Remove additional client ${index + 1}`}><Trash2 /></Button>
-                </div>
-              ))}
+              <div><Label htmlFor='scheduleLocation'>Location</Label><Input id='scheduleLocation' value={location} onChange={(event) => setLocation(event.target.value)} className='mt-2' /></div>
+              <div><Label htmlFor='scheduleStaff'>Staff</Label><Input id='scheduleStaff' value={staff} onChange={(event) => setStaff(event.target.value)} className='mt-2' /></div>
+              <div><Label htmlFor='schedulePurpose'>Purpose</Label><Textarea id='schedulePurpose' value={purpose} onChange={(event) => setPurpose(event.target.value)} className='mt-2' /></div>
+              <div><Label htmlFor='scheduleClientInput'>Client input</Label><Textarea id='scheduleClientInput' value={clientInput} onChange={(event) => setClientInput(event.target.value)} className='mt-2' /></div>
             </div>
-          </div>
-
-          <div className='grid gap-4 md:grid-cols-3'>
-            {form.pickupDropoff.map((value, index) => <div key={`pickup-${index}`}><Label htmlFor={`pickup-${index}`}>Pickup/Dropoff {index + 1}</Label><Input id={`pickup-${index}`} value={value} onChange={(event) => updateArrayField('pickupDropoff', index, event.target.value)} className='mt-2' placeholder='8:00 / 2:00' /></div>)}
-          </div>
-
-          <div><Label htmlFor='scheduleCopyNotes'>Copy notes</Label><Textarea id='scheduleCopyNotes' value={form.copyNotes} onChange={(event) => updateForm('copyNotes', event.target.value)} className='mt-2' /></div>
+            <Button type='submit' disabled={isSaving}><Plus /> {isSaving ? 'Saving…' : 'Save schedule entry'}</Button>
+          </form>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><div className='flex items-center justify-between gap-4'><div><CardTitle>Daily schedule entries</CardTitle><CardDescription>Enter one row for each time, location, purpose, and client input.</CardDescription></div><Button type='button' variant='outline' size='sm' onClick={addEntry}><Plus /> Add row</Button></div></CardHeader>
-        <CardContent className='overflow-x-auto'>
-          <table className='w-full min-w-[900px] border-collapse text-sm'>
-            <thead><tr className='bg-blue-600 text-left text-white'><th className='border p-2'>Date</th><th className='border p-2'>Time</th><th className='border p-2'>Location</th><th className='border p-2'>Purpose</th><th className='border p-2'>Client input (use names)</th><th className='border p-2'>Remove</th></tr></thead>
-            <tbody>{form.entries.map((entry, index) => <tr key={`entry-${index}`}><td className='border p-2'><Input type='date' value={entry.date} onChange={(event) => updateEntry(index, 'date', event.target.value)} /></td><td className='border p-2'><Input value={entry.time} onChange={(event) => updateEntry(index, 'time', event.target.value)} placeholder='9:00 AM' /></td><td className='border p-2'><Input value={entry.location} onChange={(event) => updateEntry(index, 'location', event.target.value)} /></td><td className='border p-2'><Textarea value={entry.purpose} onChange={(event) => updateEntry(index, 'purpose', event.target.value)} /></td><td className='border p-2'><Textarea value={entry.clientInput} onChange={(event) => updateEntry(index, 'clientInput', event.target.value)} /></td><td className='border p-2'><Button type='button' variant='ghost' size='icon' onClick={() => removeEntry(index)} aria-label={`Remove schedule row ${index + 1}`}><Trash2 /></Button></td></tr>)}</tbody>
-          </table>
-          <Button type='button' className='mt-5' onClick={() => generateWeeklySchedulePDF(form)}><Download /> Download Weekly Schedule PDF</Button>
+        <CardHeader><CardTitle>Saved entries for {selectedClient.name}</CardTitle><CardDescription>{monthEntries.length} entries in the selected reporting period.</CardDescription></CardHeader>
+        <CardContent>{monthEntries.length === 0 ? <p className='text-sm text-gray-500'>No schedule entries have been logged for this month.</p> : <div className='space-y-3'>{monthEntries.map((entry) => <div key={entry.id} className='flex items-start justify-between gap-3 rounded-md border p-4'><div className='text-sm'><p className='font-semibold'>{dayjs(entry.date).format('ddd, MMM D, YYYY')} {entry.time && `• ${entry.time}`}</p><p>{entry.location}{entry.purpose && ` • ${entry.purpose}`}</p>{entry.clientInput && <p className='text-gray-600'>{entry.clientInput}</p>}{entry.staff && <p className='text-gray-500'>Staff: {entry.staff}</p>}</div><Button type='button' variant='ghost' size='icon' onClick={() => void handleDelete(entry.id)} aria-label='Delete schedule entry'><Trash2 /></Button></div>)}</div>}</CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Export monthly PDF</CardTitle><CardDescription>These optional fields are printed on each weekly page and are not required for daily logging.</CardDescription></CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <div><Label htmlFor='scheduleMonth'>Report month</Label><Input id='scheduleMonth' type='month' value={selectedMonth} onChange={(event) => { setSelectedMonth(event.target.value); setEntryDate(`${event.target.value}-01`); }} className='mt-2' /></div>
+            <div><Label htmlFor='scheduleAdditionalClients'>Additional clients</Label><Input id='scheduleAdditionalClients' value={additionalClients} onChange={(event) => setAdditionalClients(event.target.value)} placeholder='Comma-separated names' className='mt-2' /></div>
+            <div><Label htmlFor='schedulePickupDropoff'>Pickup/dropoff</Label><Input id='schedulePickupDropoff' value={pickupDropoff} onChange={(event) => setPickupDropoff(event.target.value)} placeholder='Comma-separated times' className='mt-2' /></div>
+            <div><Label htmlFor='scheduleCopyNotes'>Copy notes</Label><Textarea id='scheduleCopyNotes' value={copyNotes} onChange={(event) => setCopyNotes(event.target.value)} className='mt-2' /></div>
+          </div>
+          <Button type='button' onClick={handleDownload}><Download /> Export monthly PDF</Button>
         </CardContent>
       </Card>
     </div>

@@ -1,15 +1,13 @@
-export interface GroomingChecklistItem {
-  label: string;
-  ratings: Record<string, string>;
+export interface GroomingEntry {
+  id: string;
+  clientId: string;
+  date: string;
+  itemLabel: string;
+  rating: string;
 }
 
-export interface GroomingChecklistData {
-  clientId: string;
-  clientName: string;
+export interface GroomingExportOptions {
   task: string;
-  month: string;
   ratingMethod: string;
-  dates: string[];
-  items: GroomingChecklistItem[];
   barriersToProgress: string;
 }

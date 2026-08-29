@@ -1,10 +1,11 @@
-'use client';
-
 import DocumentGenerator from '@/components/documentGenerator';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { requirePageAccess } from '@/lib/authorization';
 
-export default function DocumentGeneratorPage() {
+export default async function DocumentGeneratorPage() {
+  await requirePageAccess(true);
+
   return (
     <div className='min-h-screen bg-gray-50 p-8'>
       <div className='max-w-4xl mx-auto mb-6'>
