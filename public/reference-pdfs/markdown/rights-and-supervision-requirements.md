@@ -28,11 +28,11 @@ logo: public/logo.png
 
 If you feel you are being denied any of the above rights, please tell someone you trust to help you. You may also call your Service Coordinator at ELARC at (626) 299-4700.
 
-**Client signature**: _____________ ** Date:** _____________
+**Client signature:**    **Date:**
 
 ## This information was read/explained to the client by:
 
-**Staff signature:** _____________ ** Date:** _____________
+**Staff signature:**    **Date:**
 
 ## REVIEW OF GENERAL SUPERVISION REQUIREMENTS
 
@@ -51,9 +51,9 @@ Coach’s return. Individuals who are at high risk of wandering off, elopement o
 6. Job Coaches will discuss with the Program Administrator any consumers they have regarding supervision issues, including Consumer requests for more autonomy.
 
 I have read the above requirements and will supervise my Consumers.
+
 **ZERO TOLERANCE POLICY REGARDING ABUSE OR NEGLECT OF INDIVIDUALS WITH DEVELOPMENTAL DISABILITIES**
 
-**Name:** ________________
-**Date:** ________________
+**Signature of Staff:**    **Date:**
 
 

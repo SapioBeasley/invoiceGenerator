@@ -44,5 +44,4 @@ If any inconsistency exists between this Policy and the reporting laws, the prov
 This policy was reviewed and approved by Board of Directors on September 26, 2013 and is
 effective immediately.
 
-**Date:** ______________________________    **Signature:** _____________________________
-
+**Signature:**    **Date:**

@@ -74,4 +74,4 @@ Applicants must have a valid CA driver’s license, a good driving record (no DU
 
 Good communication skills; ability to work independently; good organizational skills; sensitivity to the well being of others; ability to give and take instruction effectively and produce results as a member of a service providing team; willingness to share appropriate personal interests and abilities to enhance the experiences and opportunities of our clients are preferred.
 
-**Date:** ____________________________    **Signature of Employee:** ____________________________
+**Signature:**    **Date:**

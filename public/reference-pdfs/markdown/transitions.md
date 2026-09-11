@@ -46,7 +46,7 @@ Some people are predisposed to transition issues. They include folks with the fo
 | CAUSE | TREATMENT |
 | --- | --- |
 | Fatigue, illness | Work with home staff to promote enough rest, adjust pickup time, and allow for partial participation. Insist on nonparticipation at times (consult Director) |
-| Being rushed, treated rudely, or confrontationally | Try to calm things down, lower expectations; provide incentives, report abusive staff, build trust and friendships
+| Being rushed, treated rudely, or confrontationally | Try to calm things down, lower expectations; provide incentives, report abusive staff, build trust and friendships |
 | Poor relationships with home staff and/or family. | See above. Try to provide support to staff by working with them (not for them).| 
 | Lack of support for attending the program. | Build support for the program or report issues to the HillTop Director and inform Regional Center caseworker. |     
 |Competing contingencies. | Try to make staying home less attractive |
