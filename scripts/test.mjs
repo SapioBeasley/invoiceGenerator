@@ -24,6 +24,11 @@ try {
     path.join(outputDirectory, 'lib/dashboardModules.test.js'),
     path.join(outputDirectory, 'lib/activitySummary.test.js'),
     path.join(outputDirectory, 'lib/loggerData.test.js'),
+    path.join(outputDirectory, 'lib/invoiceCalculations.test.js'),
+  ], { stdio: 'inherit', env: testEnvironment });
+  execFileSync(process.execPath, [
+    '--test',
+    path.resolve('scripts/generate-markdown-pdf.test.mjs'),
   ], { stdio: 'inherit', env: testEnvironment });
 } finally {
   fs.rmSync(outputDirectory, { recursive: true, force: true });

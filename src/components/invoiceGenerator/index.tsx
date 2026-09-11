@@ -10,6 +10,7 @@ import { Car, Copy, Download, FileText, Plus, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { autoTable } from 'jspdf-autotable';
+import { calculateInvoiceTotal, calculateLineItemCost } from '@/lib/invoiceCalculations';
 
 dayjs.extend(utc);
 
@@ -145,7 +146,7 @@ const InvoiceGenerator = () => {
           const updated = { ...item, [field]: value };
           // Auto-calculate cost when quantity or rate changes
           if (field === 'quantity' || field === 'rate') {
-            updated.cost = updated.quantity * updated.rate;
+            updated.cost = calculateLineItemCost(updated.quantity, updated.rate);
           }
           return updated;
         }
@@ -300,7 +301,7 @@ const InvoiceGenerator = () => {
       yPosition = (doc as any).lastAutoTable.finalY + 10;
 
       // Totals
-      const subtotal = data.lineItems.reduce((sum, item) => sum + item.cost, 0);
+      const subtotal = calculateInvoiceTotal(data.lineItems);
       // const tax = subtotal * 0.1; // 10% tax example
       // const total = subtotal + tax;
       const total = subtotal;
@@ -364,10 +365,7 @@ const InvoiceGenerator = () => {
     }
   };
 
-  const totalAmount = invoiceData.lineItems.reduce(
-    (sum, item) => sum + item.cost,
-    0,
-  );
+  const totalAmount = calculateInvoiceTotal(invoiceData.lineItems);
 
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
