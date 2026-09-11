@@ -34,38 +34,63 @@ const isPageHeader = (line) =>
 
 const isTableRow = (line) => line.trim().startsWith('|') && line.trim().endsWith('|');
 
+const isPageBreak = (line) => /^<!--\s*pagebreak\s*-->$/i.test(line.trim());
+
+const isOrderedListItem = (line) => /^\d+[.)](?:\s|$)/.test(line.trim());
+const isLetteredListItem = (line) => /^[A-Za-z][.)](?:\s|$)/.test(line.trim());
+const isUnorderedListItem = (line) => /^[-*+]+\s/.test(line.trim());
+const isBareBullet = (line) => /^o(?:\s|$)/i.test(line.trim());
+const isListItem = (line) => isOrderedListItem(line)
+  || isLetteredListItem(line)
+  || isUnorderedListItem(line)
+  || isBareBullet(line);
+
 const isBlockLine = (line) =>
-  /^(#{1,3}\s|[-*+]\s|\d+[.)]\s)/.test(line) ||
+  /^(#{1,3}\s)/.test(line) ||
+  isListItem(line) ||
   isTableRow(line) ||
+  isPageBreak(line) ||
   line.trim() === '---' ||
   (line.startsWith('**') && line.includes(':**')) ||
   (line.includes('**Date:**') && line.includes('**Signature of Employee:**'));
 
-const reflowMarkdownLines = (rawLines) => {
+export const reflowMarkdownLines = (rawLines) => {
   const lines = [];
   let paragraph = [];
+  let listContinuation = false;
   const flushParagraph = () => {
     if (paragraph.length > 0) lines.push(paragraph.join(' '));
     paragraph = [];
   };
 
   rawLines.forEach((rawLine) => {
+    const sourceIndent = rawLine.match(/^\s*/)?.[0].length ?? 0;
     const line = rawLine.trim().replace(/^#{1,3}\s+(?=\d+[.)]\s)/, '');
     const headerText = line.replace(/^#{1,3}\s/, '');
     if (isPageHeader(headerText) || /^\d+$/.test(headerText)) return;
     if (line === '') {
       flushParagraph();
       lines.push('');
+      listContinuation = false;
     } else if (isBlockLine(line)) {
       flushParagraph();
-      lines.push(line);
+      lines.push(`${' '.repeat(sourceIndent)}${line}`);
+      listContinuation = false;
     } else {
       const previousLine = lines[lines.length - 1];
-      const startsLowercase = line.first?.isLowercase ?? false;
-      if (paragraph.length === 0 && previousLine && /^\d+[.)]\s/.test(previousLine) && startsLowercase) {
+      const startsLowercase = /^[a-z]/.test(line);
+      const isEmptyOrderedListItem = previousLine && /^\d+[.)]\s*$/.test(previousLine.trim());
+      if (
+        paragraph.length === 0 &&
+        previousLine &&
+        isListItem(previousLine) &&
+        (listContinuation || startsLowercase || isEmptyOrderedListItem)
+      ) {
         lines[lines.length - 1] = `${previousLine} ${line}`;
+        listContinuation = true;
       } else {
         paragraph.push(line);
+        listContinuation = false;
       }
     }
   });
@@ -111,6 +136,11 @@ const wrapRichText = (doc, value, width, fontSize, baseBold = false) => {
         const tokenWidth = doc.getTextWidth(remaining);
         const isWhitespace = /^\s+$/.test(remaining);
 
+        if (isWhitespace && lineWidth + tokenWidth > width) {
+          remaining = '';
+          continue;
+        }
+
         if (!isWhitespace && lineWidth > 0 && lineWidth + tokenWidth > width) {
           addLine();
           continue;
@@ -141,7 +171,18 @@ const wrapRichText = (doc, value, width, fontSize, baseBold = false) => {
   return lines;
 };
 
-const drawRichLines = (doc, lines, x, y, fontSize, lineHeight, width, justify = false) => {
+const drawRichLines = (
+  doc,
+  lines,
+  x,
+  y,
+  fontSize,
+  lineHeight,
+  width,
+  justify = false,
+  lineOffset = 0,
+  totalLineCount = lines.length,
+) => {
   lines.forEach((line, lineIndex) => {
     let cursorX = x;
     const normalizedLine = (Array.isArray(line) ? line : [line]).map((token) => ({
@@ -154,7 +195,7 @@ const drawRichLines = (doc, lines, x, y, fontSize, lineHeight, width, justify = 
       doc.setFontSize(fontSize);
       return doc.getTextWidth(token.text);
     });
-    const isLastLine = lineIndex === lines.length - 1;
+    const isLastLine = lineIndex + lineOffset === totalLineCount - 1;
     const whitespaceCount = normalizedLine.filter((token) => /^\s+$/.test(token.text)).length;
     const extraSpace = justify && !isLastLine && whitespaceCount > 0
       ? Math.max(0, width - tokenWidths.reduce((total, tokenWidth) => total + tokenWidth, 0)) / whitespaceCount
@@ -209,10 +250,35 @@ export const renderMarkdownPdf = async (markdownPath, pdfPath) => {
     const before = options.before || 0;
     const justify = options.justify ?? true;
     const linesToDraw = wrapRichText(doc, text, contentWidth - indent, fontSize, options.bold);
-    ensureSpace(before + linesToDraw.length * lineHeight + 4);
-    y += before;
-    drawRichLines(doc, linesToDraw, margin + indent, y, fontSize, lineHeight, contentWidth - indent, justify);
-    y += linesToDraw.length * lineHeight + (options.after ?? markdownPdfStyle.body.after);
+    let lineIndex = 0;
+    let isFirstLine = true;
+    while (lineIndex < linesToDraw.length) {
+      if (isFirstLine) {
+        if (y + before + lineHeight > pageHeight - pageBottom) addPage();
+        y += before;
+        isFirstLine = false;
+      }
+
+      if (y + lineHeight > pageHeight - pageBottom) addPage();
+      const availableLines = Math.max(1, Math.floor((pageHeight - pageBottom - y) / lineHeight));
+      const linesOnPage = Math.min(availableLines, linesToDraw.length - lineIndex);
+      drawRichLines(
+        doc,
+        linesToDraw.slice(lineIndex, lineIndex + linesOnPage),
+        margin + indent,
+        y,
+        fontSize,
+        lineHeight,
+        contentWidth - indent,
+        justify,
+        lineIndex,
+        linesToDraw.length,
+      );
+      y += linesOnPage * lineHeight;
+      lineIndex += linesOnPage;
+      if (lineIndex < linesToDraw.length) addPage();
+    }
+    y += options.after ?? markdownPdfStyle.body.after;
   };
 
   const addTable = (tableLines) => {
@@ -275,50 +341,66 @@ export const renderMarkdownPdf = async (markdownPath, pdfPath) => {
   startPage(true);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (line.startsWith('# ')) {
-      if (showDocumentTitle) addParagraph(line.slice(2), { ...markdownPdfStyle.h1, bold: true, justify: false });
-    } else if (line.startsWith('## ')) {
-      addParagraph(line.slice(3), { ...markdownPdfStyle.h2, bold: true, justify: false });
-    } else if (line.startsWith('### ')) {
-      addParagraph(line.slice(4), { ...markdownPdfStyle.h3, bold: true, justify: false });
-    } else if (line.startsWith('- ')) {
-      addParagraph(`• ${line.slice(2)}`, { ...markdownPdfStyle.bullet, justify: false });
-    } else if (/^\d+[.)]\s/.test(line)) {
-      addParagraph(line, { indent: 0, fontSize: markdownPdfStyle.body.fontSize, after: markdownPdfStyle.bullet.after });
-    } else if (isTableRow(line)) {
-      const tableLines = [line];
-      while (index + 1 < lines.length && isTableRow(lines[index + 1])) {
+    const sourceIndent = line.match(/^\s*/)?.[0].length ?? 0;
+    const contentLine = line.trim();
+    const listIndent = Math.floor(sourceIndent / 4) * 14;
+    const bulletMarker = contentLine.match(/^(?:[-*+]+\s+|o(?:\s+|$))/i)?.[0] || '';
+    if (isPageBreak(contentLine)) {
+      addPage();
+    } else if (contentLine.startsWith('# ')) {
+      if (showDocumentTitle) addParagraph(contentLine.slice(2), { ...markdownPdfStyle.h1, bold: true, justify: false });
+    } else if (contentLine.startsWith('## ')) {
+      addParagraph(contentLine.slice(3), { ...markdownPdfStyle.h2, bold: true, justify: false });
+    } else if (contentLine.startsWith('### ')) {
+      addParagraph(contentLine.slice(4), { ...markdownPdfStyle.h3, bold: true, justify: false });
+    } else if (bulletMarker) {
+      const bulletText = contentLine.slice(bulletMarker.length).replace(/^o\s+/i, '');
+      addParagraph(`• ${bulletText}`, {
+        ...markdownPdfStyle.bullet,
+        indent: listIndent + markdownPdfStyle.bullet.indent,
+        justify: false,
+      });
+    } else if (isOrderedListItem(contentLine) || isLetteredListItem(contentLine)) {
+      addParagraph(contentLine, {
+        indent: listIndent,
+        fontSize: markdownPdfStyle.body.fontSize,
+        after: markdownPdfStyle.bullet.after,
+        justify: false,
+      });
+    } else if (isTableRow(contentLine)) {
+      const tableLines = [contentLine];
+      while (index + 1 < lines.length && isTableRow(lines[index + 1].trim())) {
         index += 1;
-        tableLines.push(lines[index]);
+        tableLines.push(lines[index].trim());
       }
       addTable(tableLines);
-    } else if (line.trim() === '---') {
+    } else if (contentLine === '---') {
       ensureSpace(markdownPdfStyle.rule.height);
       doc.setDrawColor(...markdownPdfStyle.rule.color);
       doc.line(margin, y, pageWidth - margin, y);
       y += markdownPdfStyle.rule.height;
-    } else if (line.trim() === '') {
+    } else if (contentLine === '') {
       y += markdownPdfStyle.body.paragraphSpacing;
-    } else if ((line.match(/\*\*[^*]+:\*\*/g) || []).length >= 2) {
+    } else if ((contentLine.match(/\*\*[^*]+:\*\*/g) || []).length >= 2) {
       ensureSpace(markdownPdfStyle.signature.height);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(markdownPdfStyle.signature.fontSize);
-      const fields = [...line.matchAll(/\*\*([^*]+):\*\*/g)].slice(0, 2).map((match) => `${match[1]}:`);
+      const fields = [...contentLine.matchAll(/\*\*([^*]+):\*\*/g)].slice(0, 2).map((match) => `${match[1]}:`);
       const secondFieldX = margin + 230;
       doc.text(fields[0], margin, y);
       doc.line(margin + doc.getTextWidth(fields[0]) + 8, y + 2, secondFieldX - 24, y + 2);
       doc.text(fields[1], secondFieldX, y);
       doc.line(secondFieldX + doc.getTextWidth(fields[1]) + 8, y + 2, pageWidth - margin, y + 2);
       y += markdownPdfStyle.signature.height;
-    } else if (/^If you feel you are being denied/i.test(line)) {
-      addParagraph(line, { before: 12, after: 12 });
-    } else if (line.startsWith('**') && line.includes(':**')) {
-      addParagraph(line, {
+    } else if (/^If you feel you are being denied/i.test(contentLine)) {
+      addParagraph(contentLine, { before: 12, after: 12 });
+    } else if (contentLine.startsWith('**') && contentLine.includes(':**')) {
+      addParagraph(contentLine, {
         ...markdownPdfStyle.field,
         after: 0,
       });
     } else {
-      addParagraph(line);
+      addParagraph(contentLine);
     }
   }
 
